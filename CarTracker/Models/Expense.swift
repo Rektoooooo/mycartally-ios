@@ -19,6 +19,8 @@ final class Expense {
     var serviceProvider: String?
     var location: String?
     var receiptPhotoData: Data?
+    var validFrom: Date?
+    var validUntil: Date?
     var createdAt: Date
 
     var car: Car?
@@ -33,6 +35,8 @@ final class Expense {
         serviceProvider: String? = nil,
         location: String? = nil,
         receiptPhotoData: Data? = nil,
+        validFrom: Date? = nil,
+        validUntil: Date? = nil,
         car: Car? = nil
     ) {
         self.id = UUID()
@@ -45,12 +49,61 @@ final class Expense {
         self.serviceProvider = serviceProvider
         self.location = location
         self.receiptPhotoData = receiptPhotoData
+        self.validFrom = validFrom
+        self.validUntil = validUntil
         self.car = car
         self.createdAt = Date()
     }
 
     var formattedAmount: String {
         String(format: "%.2f", amount)
+    }
+
+    var validityStatus: ValidityStatus? {
+        guard let until = validUntil else { return nil }
+        let now = Date()
+        if until < now {
+            return .expired
+        }
+        let daysLeft = Calendar.current.dateComponents([.day], from: now, to: until).day ?? 0
+        if daysLeft <= 30 {
+            return .expiringSoon(daysLeft: daysLeft)
+        }
+        return .valid(daysLeft: daysLeft)
+    }
+
+    var hasValidity: Bool {
+        validUntil != nil
+    }
+}
+
+enum ValidityStatus {
+    case valid(daysLeft: Int)
+    case expiringSoon(daysLeft: Int)
+    case expired
+
+    var label: String {
+        switch self {
+        case .valid(let days): return "\(days) days left"
+        case .expiringSoon(let days): return days == 0 ? "Expires today" : "\(days) days left"
+        case .expired: return "Expired"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .valid: return .green
+        case .expiringSoon: return .orange
+        case .expired: return .red
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .valid: return "checkmark.shield.fill"
+        case .expiringSoon: return "exclamationmark.triangle.fill"
+        case .expired: return "xmark.shield.fill"
+        }
     }
 }
 
@@ -96,6 +149,14 @@ enum ExpenseCategory: String, Codable, CaseIterable {
         case .accessories: return .pink
         case .tires: return .gray
         case .other: return .secondary
+        }
+    }
+
+    /// Categories where the expense has a validity/expiry period
+    var hasValidityPeriod: Bool {
+        switch self {
+        case .insurance, .tax, .inspection, .toll: return true
+        default: return false
         }
     }
 

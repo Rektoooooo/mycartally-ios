@@ -136,6 +136,7 @@ struct RemindersListView: View {
         )
 
         modelContext.insert(newReminder)
+        try? modelContext.save()
         NotificationService.shared.scheduleReminderNotification(for: newReminder, car: reminder.car)
     }
 }

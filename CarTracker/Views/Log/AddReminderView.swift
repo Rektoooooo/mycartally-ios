@@ -57,14 +57,9 @@ struct AddReminderView: View {
                         Button {
                             showingCarPicker = true
                         } label: {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color.blue.opacity(0.1))
-                                        .frame(width: 50, height: 50)
-                                    Image(systemName: "car.fill")
-                                        .foregroundStyle(.blue)
-                                }
+                            HStack(spacing: AppDesign.Spacing.sm) {
+                                Image(systemName: "car.fill")
+                                    .iconBadge(color: AppDesign.Colors.accent, size: 50, cornerRadius: AppDesign.Radius.sm)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(car.displayName)
@@ -81,7 +76,7 @@ struct AddReminderView: View {
                                     .font(.caption)
                                     .foregroundStyle(.tertiary)
                             }
-                            .padding(.vertical, 4)
+                            .padding(.vertical, AppDesign.Spacing.xxs)
                         }
                     } else {
                         Button {
@@ -330,6 +325,7 @@ struct AddReminderView: View {
             NotificationService.shared.scheduleReminderNotification(for: newReminder, car: car)
         }
 
+        try? modelContext.save()
         dismiss()
     }
 }

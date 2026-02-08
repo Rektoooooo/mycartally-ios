@@ -28,19 +28,19 @@ struct MainTabView: View {
                 }
                 .tag(2)
 
+            DiagnosticsView()
+                .tabItem {
+                    Label("OBD2", systemImage: "antenna.radiowaves.left.and.right")
+                }
+                .tag(3)
+
             StatisticsView()
                 .tabItem {
                     Label("Statistics", systemImage: "chart.bar.fill")
                 }
-                .tag(3)
-
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
-                }
                 .tag(4)
         }
-        .tint(.blue)
+        .tint(AppDesign.Colors.accent)
     }
 }
 

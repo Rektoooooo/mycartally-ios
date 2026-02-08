@@ -9,7 +9,7 @@ A beautiful, privacy-focused car expense tracker and service reminder app for EU
 
 ### Tab Navigation (5 tabs)
 1. **Dashboard** - Quick overview of all cars and upcoming events
-2. **My Cars** - Manage vehicles
+2. **My Cars** - Manage vehicles/Users/sebastiankucera/Documents/GitHub/mycartally-ios/CarTracker/plan.md
 3. **Log** - Add fuel/expenses/service records
 4. **Statistics** - Charts and cost breakdowns
 5. **Settings** - Preferences, sync, export

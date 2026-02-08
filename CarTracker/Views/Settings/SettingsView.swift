@@ -8,7 +8,10 @@ import SwiftData
 import StoreKit
 
 struct SettingsView: View {
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.requestReview) private var requestReview
+    @Environment(OBDConnectionManager.self) private var obdManager
     @Query(filter: #Predicate<Car> { !$0.isArchived }, sort: \Car.createdAt) private var cars: [Car]
     @Query(sort: \FuelEntry.date, order: .reverse) private var allFuelEntries: [FuelEntry]
     @Query(sort: \Expense.date, order: .reverse) private var allExpenses: [Expense]
@@ -44,7 +47,7 @@ struct SettingsView: View {
                             icon: "ruler",
                             title: "Units",
                             subtitle: settings.unitsDisplayString,
-                            color: .blue
+                            color: AppDesign.Colors.accent
                         )
                     }
 
@@ -55,7 +58,7 @@ struct SettingsView: View {
                             icon: "eurosign.circle.fill",
                             title: "Currency",
                             subtitle: settings.currency.displayName,
-                            color: .green
+                            color: AppDesign.Colors.stats
                         )
                     }
 
@@ -66,7 +69,7 @@ struct SettingsView: View {
                             icon: "car.fill",
                             title: "Default Car",
                             subtitle: defaultCarName,
-                            color: .orange
+                            color: AppDesign.Colors.fuel
                         )
                     }
                 } header: {
@@ -92,7 +95,7 @@ struct SettingsView: View {
                                 icon: "clock.fill",
                                 title: "Reminder Time",
                                 subtitle: reminderTimeString,
-                                color: .purple
+                                color: AppDesign.Colors.reminders
                             )
                         }
                     }
@@ -166,7 +169,7 @@ struct SettingsView: View {
                             icon: "envelope.fill",
                             title: "Contact Support",
                             subtitle: nil,
-                            color: .blue
+                            color: AppDesign.Colors.accent
                         )
                     }
                 } header: {
@@ -186,7 +189,7 @@ struct SettingsView: View {
                         HStack {
                             Text("Status")
                             Spacer()
-                            HStack(spacing: 4) {
+                            HStack(spacing: AppDesign.Spacing.xxs) {
                                 Image(systemName: "crown.fill")
                                     .foregroundStyle(.yellow)
                                 Text("Pro")
@@ -211,7 +214,7 @@ struct SettingsView: View {
                 } footer: {
                     Text("Made with care in the EU")
                         .frame(maxWidth: .infinity)
-                        .padding(.top, 16)
+                        .padding(.top, AppDesign.Spacing.md)
                 }
 
                 // Danger Zone
@@ -229,6 +232,22 @@ struct SettingsView: View {
                     Text("Danger Zone")
                 }
 
+                // OBD2 Diagnostics
+                Section {
+                    NavigationLink {
+                        OBDSettingsView()
+                    } label: {
+                        SettingsRow(
+                            icon: "antenna.radiowaves.left.and.right",
+                            title: "OBD2 Diagnostics",
+                            subtitle: obdStatusText,
+                            color: AppDesign.Colors.diagnostics
+                        )
+                    }
+                } header: {
+                    Text("Diagnostics")
+                }
+
                 #if DEBUG
                 // Debug Section
                 Section {
@@ -244,6 +263,13 @@ struct SettingsView: View {
                 #endif
             }
             .navigationTitle("Settings")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
             .sheet(isPresented: $showingProUpgrade) {
                 ProUpgradeSheet()
             }
@@ -280,6 +306,12 @@ struct SettingsView: View {
         return formatter.string(from: settings.reminderTime)
     }
 
+    private var obdStatusText: String {
+        if obdManager.isDemoMode { return "Demo Mode" }
+        if obdManager.connectionState.isConnected { return "Connected" }
+        return "Not Connected"
+    }
+
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
@@ -287,9 +319,7 @@ struct SettingsView: View {
     }
 
     private func requestAppReview() {
-        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-            SKStoreReviewController.requestReview(in: scene)
-        }
+        requestReview()
     }
 
     private func deleteAllData() {
@@ -305,6 +335,7 @@ struct SettingsView: View {
         for reminder in allReminders {
             modelContext.delete(reminder)
         }
+        try? modelContext.save()
     }
 }
 
@@ -318,11 +349,11 @@ struct SettingsRow: View {
     var isPro: Bool = false
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: AppDesign.Spacing.sm) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: AppDesign.Radius.xs)
                     .fill(color.opacity(0.15))
-                    .frame(width: 32, height: 32)
+                    .frame(width: 36, height: 36)
                 Image(systemName: icon)
                     .font(.subheadline)
                     .foregroundStyle(color)
@@ -334,7 +365,7 @@ struct SettingsRow: View {
             Spacer()
 
             if let subtitle = subtitle {
-                HStack(spacing: 4) {
+                HStack(spacing: AppDesign.Spacing.xxs) {
                     if isPro {
                         Image(systemName: "lock.fill")
                             .font(.caption2)
@@ -355,16 +386,16 @@ struct ProUpgradeBanner: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 16) {
+            VStack(spacing: AppDesign.Spacing.md) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: AppDesign.Spacing.xxs) {
                         HStack {
                             Text("CarTracker")
                                 .font(.headline)
                             Text("PRO")
                                 .font(.caption)
                                 .fontWeight(.bold)
-                                .padding(.horizontal, 6)
+                                .padding(.horizontal, AppDesign.Spacing.xs)
                                 .padding(.vertical, 2)
                                 .background(Color.white.opacity(0.2))
                                 .clipShape(Capsule())
@@ -382,7 +413,7 @@ struct ProUpgradeBanner: View {
                         .opacity(0.9)
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: AppDesign.Spacing.sm) {
                     ProFeatureTag(icon: "car.2.fill", text: "Multi-car")
                     ProFeatureTag(icon: "icloud.fill", text: "Sync")
                     ProFeatureTag(icon: "doc.fill", text: "PDF")
@@ -392,23 +423,23 @@ struct ProUpgradeBanner: View {
                 Text("Upgrade for €10")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, AppDesign.Spacing.sm)
                     .background(Color.white)
-                    .foregroundStyle(.blue)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .foregroundStyle(AppDesign.Colors.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: AppDesign.Radius.sm))
             }
             .padding()
             .background(
                 LinearGradient(
-                    colors: [.blue, .purple],
+                    colors: [AppDesign.Colors.accent, AppDesign.Colors.reminders],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
             )
             .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.Radius.lg))
             .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.vertical, AppDesign.Spacing.xs)
         }
         .buttonStyle(.plain)
     }
@@ -419,14 +450,14 @@ struct ProFeatureTag: View {
     let text: String
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: AppDesign.Spacing.xxs) {
             Image(systemName: icon)
                 .font(.caption2)
             Text(text)
                 .font(.caption)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, AppDesign.Spacing.xs)
+        .padding(.vertical, AppDesign.Spacing.xxs)
         .background(Color.white.opacity(0.2))
         .clipShape(Capsule())
     }
@@ -478,7 +509,7 @@ struct CurrencySettingsView: View {
                             Spacer()
                             if settings.currency == currency {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(AppDesign.Colors.accent)
                             }
                         }
                     }
@@ -508,7 +539,7 @@ struct DefaultCarSettingsView: View {
                         Spacer()
                         if settings.defaultCarId == nil {
                             Image(systemName: "checkmark")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(AppDesign.Colors.accent)
                         }
                     }
                 }
@@ -523,7 +554,7 @@ struct DefaultCarSettingsView: View {
                             Spacer()
                             if settings.defaultCarId == car.id {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(AppDesign.Colors.accent)
                             }
                         }
                     }
@@ -586,7 +617,7 @@ struct ThemeSettingsView: View {
                             Spacer()
                             if settings.theme == theme {
                                 Image(systemName: "checkmark")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(AppDesign.Colors.accent)
                             }
                         }
                     }
@@ -681,9 +712,9 @@ struct ExportDataSheet: View {
                                     Spacer()
                                     Text("Pro")
                                         .font(.caption)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(.blue)
+                                        .padding(.horizontal, AppDesign.Spacing.xs)
+                                        .padding(.vertical, AppDesign.Spacing.xxs)
+                                        .background(AppDesign.Colors.accent)
                                         .foregroundStyle(.white)
                                         .clipShape(Capsule())
                                 }
@@ -788,7 +819,7 @@ struct ShareSheet: UIViewControllerRepresentable {
 struct PrivacyPolicyView: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
                 Text("Privacy Policy")
                     .font(.largeTitle)
                     .fontWeight(.bold)
@@ -827,7 +858,7 @@ struct PrivacyPolicyView: View {
 struct TermsOfServiceView: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: AppDesign.Spacing.md) {
                 Text("Terms of Service")
                     .font(.largeTitle)
                     .fontWeight(.bold)
@@ -865,7 +896,85 @@ struct TermsOfServiceView: View {
     }
 }
 
+// MARK: - OBD2 Settings View
+
+struct OBDSettingsView: View {
+    @Environment(OBDConnectionManager.self) private var obdManager
+
+    var body: some View {
+        List {
+            Section {
+                HStack {
+                    Text("Status")
+                    Spacer()
+                    HStack(spacing: AppDesign.Spacing.xxs) {
+                        Circle()
+                            .fill(obdManager.connectionState.isConnected ? AppDesign.Colors.success : AppDesign.Colors.textTertiary)
+                            .frame(width: 8, height: 8)
+                        Text(obdManager.connectionState.displayName)
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                }
+
+                if let vin = obdManager.vehicleVIN {
+                    HStack {
+                        Text("VIN")
+                        Spacer()
+                        Text(vin)
+                            .font(.subheadline)
+                            .fontDesign(.monospaced)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let proto = obdManager.obdProtocol {
+                    HStack {
+                        Text("Protocol")
+                        Spacer()
+                        Text(proto)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Connection")
+            }
+
+            Section {
+                Toggle("Demo Mode", isOn: Binding(
+                    get: { obdManager.isDemoMode },
+                    set: { newValue in
+                        if newValue {
+                            obdManager.startDemoMode()
+                        } else {
+                            obdManager.stopDemoMode()
+                        }
+                    }
+                ))
+            } header: {
+                Text("Testing")
+            } footer: {
+                Text("Demo mode simulates a connected vehicle with live data for testing the UI without a physical OBD2 adapter.")
+            }
+
+            if obdManager.connectionState.isConnected {
+                Section {
+                    Button(role: .destructive) {
+                        obdManager.disconnect()
+                    } label: {
+                        Label("Disconnect", systemImage: "xmark.circle.fill")
+                    }
+                }
+            }
+        }
+        .navigationTitle("OBD2 Diagnostics")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 #Preview {
     SettingsView()
-        .modelContainer(for: [Car.self, FuelEntry.self, Expense.self, Reminder.self], inMemory: true)
+        .modelContainer(for: [Car.self, FuelEntry.self, Expense.self, Reminder.self, OBDReading.self], inMemory: true)
+        .environment(OBDConnectionManager())
 }

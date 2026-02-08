@@ -18,6 +18,13 @@ final class Car {
     var fuelType: FuelType
     var purchaseDate: Date?
     var purchasePrice: Double?
+    var ownershipTypeRaw: String = OwnershipType.owned.rawValue
+    var downPayment: Double?
+    var monthlyPayment: Double?
+    var interestRate: Double?
+    var leasingStartDate: Date?
+    var leasingEndDate: Date?
+    var leasingCompany: String?
     var currentOdometer: Int
     var photoData: Data?
     var isArchived: Bool
@@ -32,6 +39,9 @@ final class Car {
     @Relationship(deleteRule: .cascade, inverse: \Reminder.car)
     var reminders: [Reminder] = []
 
+    @Relationship(deleteRule: .cascade, inverse: \OBDReading.car)
+    var obdReadings: [OBDReading] = []
+
     init(
         make: String,
         model: String,
@@ -42,6 +52,14 @@ final class Car {
         fuelType: FuelType = .petrolE10,
         purchaseDate: Date? = nil,
         purchasePrice: Double? = nil,
+        ownershipType: OwnershipType = .owned,
+
+        downPayment: Double? = nil,
+        monthlyPayment: Double? = nil,
+        interestRate: Double? = nil,
+        leasingStartDate: Date? = nil,
+        leasingEndDate: Date? = nil,
+        leasingCompany: String? = nil,
         currentOdometer: Int = 0,
         photoData: Data? = nil
     ) {
@@ -55,10 +73,22 @@ final class Car {
         self.fuelType = fuelType
         self.purchaseDate = purchaseDate
         self.purchasePrice = purchasePrice
+        self.ownershipTypeRaw = ownershipType.rawValue
+        self.downPayment = downPayment
+        self.monthlyPayment = monthlyPayment
+        self.interestRate = interestRate
+        self.leasingStartDate = leasingStartDate
+        self.leasingEndDate = leasingEndDate
+        self.leasingCompany = leasingCompany
         self.currentOdometer = currentOdometer
         self.photoData = photoData
         self.isArchived = false
         self.createdAt = Date()
+    }
+
+    var ownershipType: OwnershipType {
+        get { OwnershipType(rawValue: ownershipTypeRaw) ?? .owned }
+        set { ownershipTypeRaw = newValue.rawValue }
     }
 
     var displayName: String {
@@ -71,6 +101,12 @@ final class Car {
         }
         return "\(make) \(model)"
     }
+}
+
+enum OwnershipType: String, Codable, CaseIterable {
+    case owned = "Owned"
+    case leased = "Leased"
+    case financed = "Financed"
 }
 
 enum FuelType: String, Codable, CaseIterable {

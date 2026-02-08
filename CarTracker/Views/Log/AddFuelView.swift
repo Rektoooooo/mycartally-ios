@@ -18,6 +18,9 @@ struct AddFuelView: View {
     // Entry being edited (nil for new entry)
     var entryToEdit: FuelEntry?
     var preselectedCar: Car?
+    var startWithReceiptScan = false
+    var preExtractedData: ExtractedReceiptData?
+    var preExtractedReceiptImage: Data?
 
     @State private var selectedCar: Car?
     @State private var date = Date()
@@ -58,14 +61,9 @@ struct AddFuelView: View {
                         Button {
                             showingCarPicker = true
                         } label: {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color.blue.opacity(0.1))
-                                        .frame(width: 50, height: 50)
-                                    Image(systemName: "car.fill")
-                                        .foregroundStyle(.blue)
-                                }
+                            HStack(spacing: AppDesign.Spacing.sm) {
+                                Image(systemName: "car.fill")
+                                    .iconBadge(color: AppDesign.Colors.accent, size: 50, cornerRadius: AppDesign.Radius.sm)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(car.displayName)
@@ -82,7 +80,7 @@ struct AddFuelView: View {
                                     .font(.caption)
                                     .foregroundStyle(.tertiary)
                             }
-                            .padding(.vertical, 4)
+                            .padding(.vertical, AppDesign.Spacing.xxs)
                         }
                     } else {
                         Button {
@@ -218,13 +216,16 @@ struct AddFuelView: View {
                 CarPickerView(selectedCar: $selectedCar, cars: cars)
             }
             .sheet(isPresented: $showingReceiptCapture) {
-                ReceiptCaptureView { extractedData, imageData in
+                ReceiptCaptureView(onDataExtracted: { extractedData, imageData in
                     applyExtractedData(extractedData)
                     receiptImageData = imageData
-                }
+                }, openCameraImmediately: startWithReceiptScan)
             }
             .onAppear {
                 setupInitialState()
+                if startWithReceiptScan {
+                    showingReceiptCapture = true
+                }
             }
         }
     }
@@ -243,15 +244,20 @@ struct AddFuelView: View {
             notes = entry.notes ?? ""
             calculateTotal = false
             receiptImageData = entry.receiptPhotoData
-        } else if let car = preselectedCar {
-            // Preselected car
-            selectedCar = car
-        } else if let car = appState.getSelectedCar(from: cars) {
-            // Use app state selected car
-            selectedCar = car
-        } else if let firstCar = cars.first {
-            // Fallback to first car
-            selectedCar = firstCar
+        } else {
+            if let car = preselectedCar {
+                selectedCar = car
+            } else if let car = appState.getSelectedCar(from: cars) {
+                selectedCar = car
+            } else if let firstCar = cars.first {
+                selectedCar = firstCar
+            }
+
+            // Apply pre-extracted receipt data if available
+            if let data = preExtractedData {
+                applyExtractedData(data)
+                receiptImageData = preExtractedReceiptImage
+            }
         }
     }
 
@@ -316,6 +322,7 @@ struct AddFuelView: View {
             }
         }
 
+        try? modelContext.save()
         dismiss()
     }
 }
@@ -334,14 +341,9 @@ struct CarPickerView: View {
                     selectedCar = car
                     dismiss()
                 } label: {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.blue.opacity(0.1))
-                                .frame(width: 44, height: 44)
-                            Image(systemName: "car.fill")
-                                .foregroundStyle(.blue)
-                        }
+                    HStack(spacing: AppDesign.Spacing.sm) {
+                        Image(systemName: "car.fill")
+                            .iconBadge(color: AppDesign.Colors.accent, size: 44, cornerRadius: AppDesign.Radius.xs)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(car.displayName)
@@ -356,7 +358,7 @@ struct CarPickerView: View {
 
                         if selectedCar?.id == car.id {
                             Image(systemName: "checkmark")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(AppDesign.Colors.accent)
                                 .fontWeight(.semibold)
                         }
                     }

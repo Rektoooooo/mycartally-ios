@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import UIKit
 import WidgetKit
 
 // MARK: - Widget Data Models
@@ -56,6 +57,25 @@ class WidgetDataService {
 
     private init() {}
 
+    // MARK: - Thumbnail
+
+    private static func createThumbnail(from photoData: Data?, maxSize: CGFloat) -> Data? {
+        guard let data = photoData,
+              let image = UIImage(data: data) else { return nil }
+
+        let longestSide = max(image.size.width, image.size.height)
+        guard longestSide > 0 else { return nil }
+
+        let ratio = min(maxSize / longestSide, 1.0)
+        let newSize = CGSize(width: image.size.width * ratio, height: image.size.height * ratio)
+
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let thumbnail = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+        return thumbnail.jpegData(compressionQuality: 0.6)
+    }
+
     // MARK: - Save Data for Widget
 
     func updateWidgetData(
@@ -71,7 +91,7 @@ class WidgetDataService {
                 displayName: car.displayName,
                 currentOdometer: car.currentOdometer,
                 fuelType: car.fuelType.rawValue,
-                imageData: car.photoData
+                imageData: Self.createThumbnail(from: car.photoData, maxSize: 200)
             )
         }
 

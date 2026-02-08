@@ -16,6 +16,7 @@ struct StatisticsView: View {
     @Query(sort: \Expense.date, order: .reverse) private var allExpenses: [Expense]
 
     @State private var selectedPeriod = 0
+    @State private var appeared = false
 
     let periods = ["Month", "Quarter", "Year", "All"]
     
@@ -78,7 +79,7 @@ struct StatisticsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: AppDesign.Spacing.lg) {
                     // Period Selector
                     Picker("Period", selection: $selectedPeriod) {
                         ForEach(0..<periods.count, id: \.self) { index in
@@ -86,7 +87,7 @@ struct StatisticsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .padding(.horizontal)
+                    .padding(.horizontal, AppDesign.Spacing.md)
 
                     if filteredFuelEntries.isEmpty && filteredExpenses.isEmpty {
                         ContentUnavailableView(
@@ -94,7 +95,7 @@ struct StatisticsView: View {
                             systemImage: "chart.bar",
                             description: Text("Add fuel entries and expenses to see statistics")
                         )
-                        .padding(.top, 40)
+                        .padding(.top, AppDesign.Spacing.xxxl)
                     } else {
                         // Summary Cards
                         SummaryCardsView(
@@ -103,20 +104,28 @@ struct StatisticsView: View {
                             consumption: averageConsumption,
                             distance: totalDistance
                         )
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 20)
 
                         // Fuel Cost Chart
                         if !filteredFuelEntries.isEmpty {
                             FuelCostChartView(entries: filteredFuelEntries)
+                                .opacity(appeared ? 1 : 0)
+                                .offset(y: appeared ? 0 : 20)
                         }
 
                         // Consumption Chart
                         if let _ = averageConsumption {
                             ConsumptionChartView(entries: filteredFuelEntries)
+                                .opacity(appeared ? 1 : 0)
+                                .offset(y: appeared ? 0 : 20)
                         }
 
                         // Expense Breakdown
                         if !filteredExpenses.isEmpty {
                             ExpenseBreakdownView(expenses: filteredExpenses)
+                                .opacity(appeared ? 1 : 0)
+                                .offset(y: appeared ? 0 : 20)
                         }
 
                         // Cost Analysis
@@ -125,13 +134,29 @@ struct StatisticsView: View {
                                 costPerKm: (totalFuelCost + totalExpensesCost) / Double(totalDistance),
                                 monthlyAvg: (totalFuelCost + totalExpensesCost) / max(1, Double(monthsInPeriod))
                             )
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 20)
                         }
                     }
                 }
                 .padding(.vertical)
+                .animation(.easeInOut(duration: 0.3), value: selectedPeriod)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(AppDesign.Colors.background)
             .navigationTitle("Statistics")
+            .onAppear {
+                withAnimation(AppDesign.Animation.bouncy.delay(0.15)) {
+                    appeared = true
+                }
+            }
+            .onChange(of: selectedPeriod) { _, _ in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    appeared = false
+                }
+                withAnimation(AppDesign.Animation.bouncy.delay(0.2)) {
+                    appeared = true
+                }
+            }
         }
     }
 
@@ -161,12 +186,12 @@ struct SummaryCardsView: View {
     }
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AppDesign.Spacing.sm) {
             SummaryCard(
                 title: "Total Spent",
                 value: String(format: "%.0f \(settings.currency.symbol)", totalSpent),
                 icon: "eurosign.circle.fill",
-                color: .blue,
+                color: AppDesign.Colors.accent,
                 subtitle: "This period"
             )
 
@@ -174,7 +199,7 @@ struct SummaryCardsView: View {
                 title: "Fuel Cost",
                 value: String(format: "%.0f \(settings.currency.symbol)", fuelCost),
                 icon: "fuelpump.fill",
-                color: .orange,
+                color: AppDesign.Colors.fuel,
                 subtitle: "\(fuelPercentage)% of total"
             )
 
@@ -182,7 +207,7 @@ struct SummaryCardsView: View {
                 title: "Avg. Consumption",
                 value: consumption != nil ? String(format: "%.1f", consumption!) : "--",
                 icon: "gauge.with.dots.needle.67percent",
-                color: .green,
+                color: AppDesign.Colors.stats,
                 subtitle: settings.distanceUnit.consumptionLabel
             )
 
@@ -190,11 +215,11 @@ struct SummaryCardsView: View {
                 title: "Distance",
                 value: distance.formatted(),
                 icon: "road.lanes",
-                color: .purple,
+                color: AppDesign.Colors.reminders,
                 subtitle: "\(settings.distanceUnit.abbreviation) driven"
             )
         }
-        .padding(.horizontal)
+        .padding(.horizontal, AppDesign.Spacing.md)
     }
 }
 
@@ -206,31 +231,37 @@ struct SummaryCard: View {
     let subtitle: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.title3)
-                    .foregroundStyle(color)
-                Spacer()
-            }
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
+            Image(systemName: icon)
+                .font(.title3)
+                .iconBadge(color: color, size: 42, iconSize: .callout, cornerRadius: AppDesign.Radius.xs)
 
             Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
+                .font(.system(size: 24, weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .contentTransition(.numericText())
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(AppDesign.Typography.caption)
+                    .foregroundStyle(AppDesign.Colors.textSecondary)
                 Text(subtitle)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(AppDesign.Typography.caption2)
+                    .foregroundStyle(AppDesign.Colors.textTertiary)
+                    .contentTransition(.numericText())
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(AppDesign.Spacing.md)
+        .background(
+            ZStack(alignment: .top) {
+                AppDesign.Colors.cardBackground
+                color.frame(height: 3)
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: AppDesign.Radius.md))
+        .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
     }
 }
 
@@ -270,35 +301,63 @@ struct FuelCostChartView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
             HStack {
-                Text("Fuel Costs")
-                    .font(.headline)
+                HStack(spacing: AppDesign.Spacing.xs) {
+                    Image(systemName: "fuelpump.fill")
+                        .font(.caption)
+                        .foregroundStyle(AppDesign.Colors.fuel)
+                    Text("Fuel Costs")
+                        .font(AppDesign.Typography.headline)
+                }
                 Spacer()
                 Text(String(format: "%.0f \(settings.currency.symbol)", total))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(AppDesign.Typography.bodyMedium)
+                    .foregroundStyle(AppDesign.Colors.fuel)
+                    .contentTransition(.numericText())
             }
-            .padding(.horizontal)
+            .padding(.horizontal, AppDesign.Spacing.md)
 
-            Chart {
-                ForEach(monthlyData, id: \.month) { item in
-                    BarMark(
-                        x: .value("Month", item.month),
-                        y: .value("Cost", item.cost)
-                    )
-                    .foregroundStyle(.orange.gradient)
-                    .cornerRadius(6)
+            VStack(spacing: 0) {
+                Chart {
+                    ForEach(monthlyData, id: \.month) { item in
+                        BarMark(
+                            x: .value("Month", item.month),
+                            y: .value("Cost", item.cost)
+                        )
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [AppDesign.Colors.fuel, AppDesign.Colors.fuel.opacity(0.6)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .cornerRadius(6)
+                    }
                 }
+                .chartYScale(domain: .automatic(includesZero: true))
+                .animation(.easeInOut(duration: 0.4), value: monthlyData.map(\.cost))
+                .frame(height: 180)
+                .chartYAxis {
+                    AxisMarks(position: .leading) { value in
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
+                            .foregroundStyle(Color.gray.opacity(0.2))
+                        AxisValueLabel()
+                            .foregroundStyle(AppDesign.Colors.textTertiary)
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks { value in
+                        AxisValueLabel()
+                            .foregroundStyle(AppDesign.Colors.textSecondary)
+                    }
+                }
+                .padding(AppDesign.Spacing.md)
             }
-            .frame(height: 180)
-            .chartYAxis {
-                AxisMarks(position: .leading)
-            }
-            .padding()
-            .background(Color(.systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .padding(.horizontal)
+            .background(AppDesign.Colors.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.Radius.md))
+            .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
+            .padding(.horizontal, AppDesign.Spacing.md)
         }
     }
 }
@@ -326,50 +385,79 @@ struct ConsumptionChartView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
             HStack {
-                Text("Fuel Consumption")
-                    .font(.headline)
+                HStack(spacing: AppDesign.Spacing.xs) {
+                    Image(systemName: "gauge.with.dots.needle.67percent")
+                        .font(.caption)
+                        .foregroundStyle(AppDesign.Colors.stats)
+                    Text("Fuel Consumption")
+                        .font(AppDesign.Typography.headline)
+                }
                 Spacer()
-                HStack(spacing: 4) {
+                HStack(spacing: AppDesign.Spacing.xxs) {
                     Text("Avg:")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(AppDesign.Colors.textSecondary)
                     Text(String(format: "%.1f \(settings.distanceUnit.consumptionLabel)", average))
                         .fontWeight(.medium)
+                        .foregroundStyle(AppDesign.Colors.stats)
+                        .contentTransition(.numericText())
                 }
-                .font(.subheadline)
+                .font(AppDesign.Typography.subheadline)
             }
-            .padding(.horizontal)
+            .padding(.horizontal, AppDesign.Spacing.md)
 
             if !consumptionData.isEmpty {
-                Chart {
-                    ForEach(consumptionData, id: \.date) { item in
-                        LineMark(
-                            x: .value("Date", item.date),
-                            y: .value("Consumption", item.consumption)
-                        )
-                        .foregroundStyle(.green)
-                        .symbol(.circle)
+                VStack(spacing: 0) {
+                    Chart {
+                        ForEach(consumptionData, id: \.date) { item in
+                            LineMark(
+                                x: .value("Date", item.date),
+                                y: .value("Consumption", item.consumption)
+                            )
+                            .foregroundStyle(AppDesign.Colors.stats)
+                            .lineStyle(StrokeStyle(lineWidth: 2.5))
+                            .symbol(.circle)
 
-                        AreaMark(
-                            x: .value("Date", item.date),
-                            y: .value("Consumption", item.consumption)
-                        )
-                        .foregroundStyle(.green.opacity(0.1))
+                            AreaMark(
+                                x: .value("Date", item.date),
+                                y: .value("Consumption", item.consumption)
+                            )
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [AppDesign.Colors.stats.opacity(0.2), AppDesign.Colors.stats.opacity(0.02)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                        }
+
+                        RuleMark(y: .value("Average", average))
+                            .foregroundStyle(AppDesign.Colors.stats.opacity(0.4))
+                            .lineStyle(StrokeStyle(dash: [5, 5]))
                     }
-
-                    RuleMark(y: .value("Average", average))
-                        .foregroundStyle(.green.opacity(0.5))
-                        .lineStyle(StrokeStyle(dash: [5, 5]))
+                    .animation(.easeInOut(duration: 0.4), value: consumptionData.map(\.consumption))
+                    .frame(height: 180)
+                    .chartYAxis {
+                        AxisMarks(position: .leading) { value in
+                            AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
+                                .foregroundStyle(Color.gray.opacity(0.2))
+                            AxisValueLabel()
+                                .foregroundStyle(AppDesign.Colors.textTertiary)
+                        }
+                    }
+                    .chartXAxis {
+                        AxisMarks { value in
+                            AxisValueLabel()
+                                .foregroundStyle(AppDesign.Colors.textSecondary)
+                        }
+                    }
+                    .padding(AppDesign.Spacing.md)
                 }
-                .frame(height: 180)
-                .chartYAxis {
-                    AxisMarks(position: .leading)
-                }
-                .padding()
-                .background(Color(.systemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .padding(.horizontal)
+                .background(AppDesign.Colors.cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: AppDesign.Radius.md))
+                .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
+                .padding(.horizontal, AppDesign.Spacing.md)
             }
         }
     }
@@ -393,18 +481,24 @@ struct ExpenseBreakdownView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
             HStack {
-                Text("Expense Breakdown")
-                    .font(.headline)
+                HStack(spacing: AppDesign.Spacing.xs) {
+                    Image(systemName: "chart.pie.fill")
+                        .font(.caption)
+                        .foregroundStyle(AppDesign.Colors.accent)
+                    Text("Expense Breakdown")
+                        .font(AppDesign.Typography.headline)
+                }
                 Spacer()
                 Text(String(format: "%.0f \(settings.currency.symbol)", total))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(AppDesign.Typography.bodyMedium)
+                    .foregroundStyle(AppDesign.Colors.accent)
+                    .contentTransition(.numericText())
             }
-            .padding(.horizontal)
+            .padding(.horizontal, AppDesign.Spacing.md)
 
-            VStack(spacing: 12) {
+            VStack(spacing: AppDesign.Spacing.md) {
                 // Pie Chart
                 if !byCategory.isEmpty {
                     Chart {
@@ -418,34 +512,47 @@ struct ExpenseBreakdownView: View {
                             .cornerRadius(4)
                         }
                     }
-                    .frame(height: 160)
+                    .animation(.easeInOut(duration: 0.4), value: byCategory.map(\.amount))
+                    .frame(height: 180)
                 }
 
                 // Legend
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                VStack(spacing: AppDesign.Spacing.xs) {
                     ForEach(byCategory.prefix(6), id: \.category) { item in
-                        HStack(spacing: 8) {
-                            Circle()
+                        HStack(spacing: AppDesign.Spacing.sm) {
+                            RoundedRectangle(cornerRadius: 3)
                                 .fill(item.category.color)
-                                .frame(width: 10, height: 10)
+                                .frame(width: 14, height: 14)
 
                             Text(item.category.rawValue)
-                                .font(.caption)
+                                .font(AppDesign.Typography.subheadline)
                                 .lineLimit(1)
 
                             Spacer()
 
                             Text(String(format: "%.0f \(settings.currency.symbol)", item.amount))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(AppDesign.Typography.subheadline)
+                                .fontWeight(.medium)
+
+                            if total > 0 {
+                                Text(String(format: "%.0f%%", (item.amount / total) * 100))
+                                    .font(AppDesign.Typography.caption)
+                                    .foregroundStyle(AppDesign.Colors.textTertiary)
+                                    .frame(width: 36, alignment: .trailing)
+                            }
+                        }
+
+                        if item.category != byCategory.prefix(6).last?.category {
+                            Divider()
                         }
                     }
                 }
             }
-            .padding()
-            .background(Color(.systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .padding(.horizontal)
+            .padding(AppDesign.Spacing.md)
+            .background(AppDesign.Colors.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppDesign.Radius.md))
+            .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
+            .padding(.horizontal, AppDesign.Spacing.md)
         }
     }
 }
@@ -459,23 +566,32 @@ struct CostPerKmView: View {
     let monthlyAvg: Double
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Cost Analysis")
-                .font(.headline)
-                .padding(.horizontal)
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
+            HStack(spacing: AppDesign.Spacing.xs) {
+                Image(systemName: "chart.line.downtrend.xyaxis")
+                    .font(.caption)
+                    .foregroundStyle(AppDesign.Colors.stats)
+                Text("Cost Analysis")
+                    .font(AppDesign.Typography.headline)
+            }
+            .padding(.horizontal, AppDesign.Spacing.md)
 
-            HStack(spacing: 12) {
+            HStack(spacing: AppDesign.Spacing.sm) {
                 CostMetricCard(
                     title: "Cost per km",
-                    value: String(format: "%.2f \(settings.currency.symbol)", costPerKm)
+                    value: String(format: "%.2f \(settings.currency.symbol)", costPerKm),
+                    icon: "road.lanes",
+                    color: AppDesign.Colors.accent
                 )
 
                 CostMetricCard(
                     title: "Monthly Avg",
-                    value: String(format: "%.0f \(settings.currency.symbol)", monthlyAvg)
+                    value: String(format: "%.0f \(settings.currency.symbol)", monthlyAvg),
+                    icon: "calendar",
+                    color: AppDesign.Colors.stats
                 )
             }
-            .padding(.horizontal)
+            .padding(.horizontal, AppDesign.Spacing.md)
         }
     }
 }
@@ -483,22 +599,37 @@ struct CostPerKmView: View {
 struct CostMetricCard: View {
     let title: String
     let value: String
+    var icon: String = ""
+    var color: Color = AppDesign.Colors.accent
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
+            if !icon.isEmpty {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundStyle(color)
+            }
+
             Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(AppDesign.Typography.caption)
+                .foregroundStyle(AppDesign.Colors.textSecondary)
 
             Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
+                .font(.system(size: 22, weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .contentTransition(.numericText())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
+        .padding(AppDesign.Spacing.md)
+        .background(
+            ZStack(alignment: .top) {
+                AppDesign.Colors.cardBackground
+                color.frame(height: 3)
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: AppDesign.Radius.md))
+        .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
     }
 }
 

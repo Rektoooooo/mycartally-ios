@@ -7,10 +7,16 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 
+struct CropImageItem: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
 struct AddCarView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(AppState.self) private var appState
+    @Environment(OBDConnectionManager.self) private var obdManager
 
     let settings = UserSettings.shared
 
@@ -25,11 +31,19 @@ struct AddCarView: View {
     @State private var vin = ""
     @State private var fuelType: FuelType = .petrolE10
     @State private var odometer = ""
+    @State private var ownershipType: OwnershipType = .owned
     @State private var purchaseDate = Date()
     @State private var purchasePrice = ""
     @State private var hasPurchaseInfo = false
+    @State private var downPayment = ""
+    @State private var monthlyPayment = ""
+    @State private var interestRate = ""
+    @State private var leasingEndDate = Date()
+    @State private var leasingCompany = ""
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedPhotoData: Data?
+    @State private var cropItem: CropImageItem?
+    @State private var isReadingVIN = false
 
     private let currentYear = Calendar.current.component(.year, from: Date())
 
@@ -47,40 +61,46 @@ struct AddCarView: View {
                 // Photo Section
                 Section {
                     PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                        HStack {
-                            Spacer()
-                            VStack(spacing: 12) {
-                                if let photoData = selectedPhotoData,
-                                   let uiImage = UIImage(data: photoData) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 120, height: 90)
-                                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                                } else {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .fill(Color.blue.opacity(0.1))
-                                            .frame(width: 120, height: 90)
+                        VStack(spacing: AppDesign.Spacing.xs) {
+                            if let photoData = selectedPhotoData,
+                               let uiImage = UIImage(data: photoData) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(height: 140)
+                                    .frame(maxWidth: .infinity)
+                                    .clipShape(RoundedRectangle(cornerRadius: AppDesign.Radius.sm))
+                            } else {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: AppDesign.Radius.sm)
+                                        .fill(AppDesign.Colors.accent.opacity(0.08))
+                                        .frame(height: 140)
+                                        .frame(maxWidth: .infinity)
 
+                                    VStack(spacing: AppDesign.Spacing.xs) {
                                         Image(systemName: "camera.fill")
                                             .font(.title)
-                                            .foregroundStyle(.blue)
+                                            .foregroundStyle(AppDesign.Colors.accent)
+                                        Text("Add Photo")
+                                            .font(AppDesign.Typography.subheadline)
+                                            .foregroundStyle(AppDesign.Colors.accent)
                                     }
                                 }
-
-                                Text(selectedPhotoData == nil ? "Add Photo" : "Change Photo")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.blue)
                             }
-                            Spacer()
+
+                            if selectedPhotoData != nil {
+                                Text("Change Photo")
+                                    .font(AppDesign.Typography.caption)
+                                    .foregroundStyle(AppDesign.Colors.accent)
+                            }
                         }
-                        .padding(.vertical, 8)
+                        .padding(.vertical, AppDesign.Spacing.xxs)
                     }
                     .onChange(of: selectedPhotoItem) { _, newItem in
                         Task {
-                            if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                                selectedPhotoData = data
+                            if let data = try? await newItem?.loadTransferable(type: Data.self),
+                               let uiImage = UIImage(data: data) {
+                                cropItem = CropImageItem(image: uiImage)
                             }
                         }
                     }
@@ -142,6 +162,31 @@ struct AddCarView: View {
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
                     }
+
+                    if obdManager.connectionState.isConnectedToVehicle {
+                        Button {
+                            isReadingVIN = true
+                            Task {
+                                if let readVin = await obdManager.readVIN() {
+                                    vin = readVin
+                                }
+                                isReadingVIN = false
+                            }
+                        } label: {
+                            HStack {
+                                if isReadingVIN {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Image(systemName: "antenna.radiowaves.left.and.right")
+                                }
+                                Text("Auto-fill from OBD2")
+                            }
+                            .font(AppDesign.Typography.subheadline)
+                            .foregroundStyle(AppDesign.Colors.diagnostics)
+                        }
+                        .disabled(isReadingVIN)
+                    }
                 } header: {
                     Text("Identification")
                 }
@@ -171,27 +216,89 @@ struct AddCarView: View {
                     Text("Specifications")
                 }
 
-                // Purchase Info
+                // Ownership & Purchase Info
                 Section {
-                    Toggle("Add Purchase Info", isOn: $hasPurchaseInfo)
+                    Picker("Ownership", selection: $ownershipType) {
+                        ForEach(OwnershipType.allCases, id: \.self) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
 
-                    if hasPurchaseInfo {
-                        DatePicker("Purchase Date", selection: $purchaseDate, displayedComponents: .date)
+                    if ownershipType == .owned {
+                        Toggle("Add Purchase Info", isOn: $hasPurchaseInfo)
+
+                        if hasPurchaseInfo {
+                            DatePicker("Purchase Date", selection: $purchaseDate, displayedComponents: .date)
+
+                            HStack {
+                                Text("Purchase Price")
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                TextField("0", text: $purchasePrice)
+                                    .multilineTextAlignment(.trailing)
+                                    .keyboardType(.decimalPad)
+                                    .frame(width: 100)
+                                Text(settings.currency.symbol)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
+                    if ownershipType == .leased || ownershipType == .financed {
+                        DatePicker("Start Date", selection: $purchaseDate, displayedComponents: .date)
 
                         HStack {
-                            Text("Purchase Price")
+                            Text("Down Payment")
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            TextField("0", text: $purchasePrice)
+                            TextField("0", text: $downPayment)
                                 .multilineTextAlignment(.trailing)
                                 .keyboardType(.decimalPad)
                                 .frame(width: 100)
                             Text(settings.currency.symbol)
                                 .foregroundStyle(.secondary)
                         }
+
+                        HStack {
+                            Text("Monthly Payment")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            TextField("0", text: $monthlyPayment)
+                                .multilineTextAlignment(.trailing)
+                                .keyboardType(.decimalPad)
+                                .frame(width: 100)
+                            Text(settings.currency.symbol)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        HStack {
+                            Text("Interest Rate")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            TextField("0.0", text: $interestRate)
+                                .multilineTextAlignment(.trailing)
+                                .keyboardType(.decimalPad)
+                                .frame(width: 80)
+                            Text("%")
+                                .foregroundStyle(.secondary)
+                        }
+
+                        DatePicker("End Date", selection: $leasingEndDate, displayedComponents: .date)
+
+                        HStack {
+                            Text(ownershipType == .leased ? "Leasing Company" : "Finance Company")
+                                .foregroundStyle(.secondary)
+                            TextField("Optional", text: $leasingCompany)
+                                .multilineTextAlignment(.trailing)
+                                .autocorrectionDisabled()
+                        }
                     }
                 } header: {
-                    Text("Purchase (Optional)")
+                    switch ownershipType {
+                    case .owned: Text("Purchase (Optional)")
+                    case .leased: Text("Leasing Details")
+                    case .financed: Text("Financing Details")
+                    }
                 }
             }
             .navigationTitle(isEditing ? "Edit Car" : "Add Car")
@@ -216,6 +323,11 @@ struct AddCarView: View {
                     loadCarData(car)
                 }
             }
+            .fullScreenCover(item: $cropItem) { item in
+                PhotoCropView(image: item.image) { croppedData in
+                    selectedPhotoData = croppedData
+                }
+            }
         }
     }
 
@@ -229,6 +341,7 @@ struct AddCarView: View {
         fuelType = car.fuelType
         odometer = "\(car.currentOdometer)"
         selectedPhotoData = car.photoData
+        ownershipType = car.ownershipType
 
         if let date = car.purchaseDate {
             hasPurchaseInfo = true
@@ -237,11 +350,23 @@ struct AddCarView: View {
                 purchasePrice = "\(price)"
             }
         }
+
+        if let dp = car.downPayment { downPayment = "\(dp)" }
+        if let mp = car.monthlyPayment { monthlyPayment = "\(mp)" }
+        if let ir = car.interestRate { interestRate = "\(ir)" }
+        if let startDate = car.leasingStartDate { purchaseDate = startDate }
+        if let endDate = car.leasingEndDate { leasingEndDate = endDate }
+        leasingCompany = car.leasingCompany ?? ""
     }
 
     private func saveCar() {
         let odometerValue = Int(odometer) ?? 0
         let priceValue = Double(purchasePrice.replacingOccurrences(of: ",", with: "."))
+        let downPaymentValue = Double(downPayment.replacingOccurrences(of: ",", with: "."))
+        let monthlyPaymentValue = Double(monthlyPayment.replacingOccurrences(of: ",", with: "."))
+        let interestRateValue = Double(interestRate.replacingOccurrences(of: ",", with: "."))
+
+        let isLeasedOrFinanced = ownershipType == .leased || ownershipType == .financed
 
         if let car = carToEdit {
             // Update existing car
@@ -254,8 +379,27 @@ struct AddCarView: View {
             car.fuelType = fuelType
             car.currentOdometer = odometerValue
             car.photoData = selectedPhotoData
-            car.purchaseDate = hasPurchaseInfo ? purchaseDate : nil
-            car.purchasePrice = hasPurchaseInfo ? priceValue : nil
+            car.ownershipType = ownershipType
+
+            if ownershipType == .owned {
+                car.purchaseDate = hasPurchaseInfo ? purchaseDate : nil
+                car.purchasePrice = hasPurchaseInfo ? priceValue : nil
+                car.downPayment = nil
+                car.monthlyPayment = nil
+                car.interestRate = nil
+                car.leasingStartDate = nil
+                car.leasingEndDate = nil
+                car.leasingCompany = nil
+            } else {
+                car.purchaseDate = nil
+                car.purchasePrice = nil
+                car.leasingStartDate = purchaseDate
+                car.downPayment = downPaymentValue
+                car.monthlyPayment = monthlyPaymentValue
+                car.interestRate = interestRateValue
+                car.leasingEndDate = leasingEndDate
+                car.leasingCompany = leasingCompany.isEmpty ? nil : leasingCompany.trimmingCharacters(in: .whitespaces)
+            }
         } else {
             // Create new car
             let newCar = Car(
@@ -266,8 +410,15 @@ struct AddCarView: View {
                 licensePlate: licensePlate.trimmingCharacters(in: .whitespaces).uppercased(),
                 vin: vin.isEmpty ? nil : vin.trimmingCharacters(in: .whitespaces).uppercased(),
                 fuelType: fuelType,
-                purchaseDate: hasPurchaseInfo ? purchaseDate : nil,
-                purchasePrice: hasPurchaseInfo ? priceValue : nil,
+                purchaseDate: ownershipType == .owned && hasPurchaseInfo ? purchaseDate : nil,
+                purchasePrice: ownershipType == .owned && hasPurchaseInfo ? priceValue : nil,
+                ownershipType: ownershipType,
+                downPayment: isLeasedOrFinanced ? downPaymentValue : nil,
+                monthlyPayment: isLeasedOrFinanced ? monthlyPaymentValue : nil,
+                interestRate: isLeasedOrFinanced ? interestRateValue : nil,
+                leasingStartDate: isLeasedOrFinanced ? purchaseDate : nil,
+                leasingEndDate: isLeasedOrFinanced ? leasingEndDate : nil,
+                leasingCompany: isLeasedOrFinanced && !leasingCompany.isEmpty ? leasingCompany.trimmingCharacters(in: .whitespaces) : nil,
                 currentOdometer: odometerValue,
                 photoData: selectedPhotoData
             )
@@ -277,6 +428,7 @@ struct AddCarView: View {
             appState.selectCar(newCar)
         }
 
+        try? modelContext.save()
         dismiss()
     }
 }
@@ -285,4 +437,5 @@ struct AddCarView: View {
     AddCarView()
         .modelContainer(for: Car.self, inMemory: true)
         .environment(AppState())
+        .environment(OBDConnectionManager())
 }

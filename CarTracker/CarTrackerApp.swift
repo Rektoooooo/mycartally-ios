@@ -11,6 +11,7 @@ import SwiftData
 @main
 struct CarTrackerApp: App {
     @State private var appState = AppState()
+    @State private var obdManager = OBDConnectionManager()
     @State private var showOnboarding = false
     private var settings = UserSettings.shared
     private var onboardingManager = OnboardingManager.shared
@@ -20,7 +21,8 @@ struct CarTrackerApp: App {
             Car.self,
             FuelEntry.self,
             Expense.self,
-            Reminder.self
+            Reminder.self,
+            OBDReading.self
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,
@@ -38,6 +40,7 @@ struct CarTrackerApp: App {
         WindowGroup {
             MainTabView()
                 .environment(appState)
+                .environment(obdManager)
                 .preferredColorScheme(settings.theme.colorScheme)
                 .onAppear {
                     if !onboardingManager.hasCompletedOnboarding {
@@ -50,6 +53,7 @@ struct CarTrackerApp: App {
                         showOnboarding = false
                     }
                     .environment(appState)
+                    .environment(obdManager)
                 }
         }
         .modelContainer(sharedModelContainer)

@@ -11,6 +11,7 @@ struct ReceiptCaptureView: View {
 
     // Callback to pass extracted data back to AddFuelView
     let onDataExtracted: (ExtractedReceiptData, Data?) -> Void
+    var openCameraImmediately = false
 
     @State private var showingCamera = false
     @State private var selectedPhotoItem: PhotosPickerItem?
@@ -26,88 +27,98 @@ struct ReceiptCaptureView: View {
         UIImagePickerController.isSourceTypeAvailable(.camera)
     }
 
+    @State private var cameraWasDismissed = false
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                // Header
-                VStack(spacing: 8) {
-                    Image(systemName: "doc.text.viewfinder")
-                        .font(.system(size: 60))
-                        .foregroundStyle(.blue)
+            VStack(spacing: AppDesign.Spacing.xl) {
+                if openCameraImmediately && !cameraWasDismissed && !isProcessing {
+                    // Minimal placeholder while camera is about to open
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                } else {
+                    // Header
+                    VStack(spacing: AppDesign.Spacing.xs) {
+                        Image(systemName: "doc.text.viewfinder")
+                            .font(.system(size: 60))
+                            .foregroundStyle(AppDesign.Colors.accent)
 
-                    Text("Scan Receipt")
-                        .font(.title2)
-                        .fontWeight(.semibold)
+                        Text("Scan Receipt")
+                            .font(AppDesign.Typography.title2)
 
-                    Text("Take a photo or select from library")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.top, 40)
-
-                Spacer()
-
-                // Processing indicator
-                if isProcessing {
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                        Text("Processing receipt...")
-                            .font(.subheadline)
+                        Text("Take a photo or select from library")
+                            .font(AppDesign.Typography.subheadline)
                             .foregroundStyle(.secondary)
                     }
-                }
+                    .padding(.top, AppDesign.Spacing.xxxl)
 
-                // Error message
-                if let error = errorMessage {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.title)
-                            .foregroundStyle(.orange)
-                        Text(error)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
+                    Spacer()
+
+                    // Processing indicator
+                    if isProcessing {
+                        VStack(spacing: AppDesign.Spacing.md) {
+                            ProgressView()
+                                .scaleEffect(1.5)
+                            Text("Processing receipt...")
+                                .font(AppDesign.Typography.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    .padding()
-                    .background(Color.orange.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .padding(.horizontal)
-                }
 
-                Spacer()
+                    // Error message
+                    if let error = errorMessage {
+                        VStack(spacing: AppDesign.Spacing.sm) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.title)
+                                .foregroundStyle(AppDesign.Colors.fuel)
+                            Text(error)
+                                .font(AppDesign.Typography.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding()
+                        .background(AppDesign.Colors.fuel.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: AppDesign.Radius.sm))
+                        .padding(.horizontal)
+                    }
 
-                // Action buttons
-                VStack(spacing: 16) {
-                    // Camera button
-                    if isCameraAvailable {
-                        Button {
-                            showingCamera = true
-                        } label: {
-                            Label("Take Photo", systemImage: "camera.fill")
+                    Spacer()
+
+                    // Action buttons
+                    VStack(spacing: AppDesign.Spacing.md) {
+                        // Camera button
+                        if isCameraAvailable {
+                            Button {
+                                showingCamera = true
+                            } label: {
+                                Label("Take Photo", systemImage: "camera.fill")
+                                    .font(AppDesign.Typography.headline)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(AppDesign.Colors.accent)
+                                    .foregroundStyle(.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: AppDesign.Radius.sm))
+                            }
+                            .disabled(isProcessing)
+                        }
+
+                        // Photo library button
+                        PhotosPicker(selection: $selectedPhotoItem,
+                                     matching: .images) {
+                            Label("Choose from Library", systemImage: "photo.on.rectangle")
+                                .font(AppDesign.Typography.headline)
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.blue)
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .background(Color.secondary.opacity(0.1))
+                                .foregroundStyle(.primary)
+                                .clipShape(RoundedRectangle(cornerRadius: AppDesign.Radius.sm))
                         }
                         .disabled(isProcessing)
                     }
-
-                    // Photo library button
-                    PhotosPicker(selection: $selectedPhotoItem,
-                                 matching: .images) {
-                        Label("Choose from Library", systemImage: "photo.on.rectangle")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.secondary.opacity(0.1))
-                            .foregroundStyle(.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .disabled(isProcessing)
+                    .padding(.horizontal)
+                    .padding(.bottom, AppDesign.Spacing.xxl)
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 32)
             }
             .navigationTitle("Receipt Scanner")
             .navigationBarTitleDisplayMode(.inline)
@@ -118,7 +129,16 @@ struct ReceiptCaptureView: View {
                     }
                 }
             }
-            .fullScreenCover(isPresented: $showingCamera) {
+            .onAppear {
+                if openCameraImmediately && isCameraAvailable {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        showingCamera = true
+                    }
+                }
+            }
+            .fullScreenCover(isPresented: $showingCamera, onDismiss: {
+                cameraWasDismissed = true
+            }) {
                 ReceiptCameraView { image in
                     processImage(image)
                 }

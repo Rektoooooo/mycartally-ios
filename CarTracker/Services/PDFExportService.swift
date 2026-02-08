@@ -54,7 +54,6 @@ class PDFExportService {
 
             // MARK: - Header
             let titleFont = UIFont.systemFont(ofSize: 24, weight: .bold)
-            let subtitleFont = UIFont.systemFont(ofSize: 14, weight: .regular)
             let headerFont = UIFont.systemFont(ofSize: 16, weight: .semibold)
             let bodyFont = UIFont.systemFont(ofSize: 11, weight: .regular)
             let smallFont = UIFont.systemFont(ofSize: 9, weight: .regular)
@@ -101,11 +100,11 @@ class PDFExportService {
             let vehicleInfo = [
                 ("Make", car.make),
                 ("Model", car.model),
-                ("Year", car.year != nil ? "\(car.year)" : "N/A"),
-                ("License Plate", car.licensePlate ?? "N/A"),
+                ("Year", "\(car.year)"),
+                ("License Plate", car.licensePlate),
                 ("VIN", car.vin ?? "N/A"),
                 ("Fuel Type", car.fuelType.rawValue),
-                ("Current Odometer", car.currentOdometer != nil ? "\(car.currentOdometer.formatted()) \(settings.distanceUnit.abbreviation)" : "N/A")
+                ("Current Odometer", "\(car.currentOdometer.formatted()) \(settings.distanceUnit.abbreviation)")
             ]
 
             for (label, value) in vehicleInfo {

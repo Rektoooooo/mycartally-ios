@@ -28,6 +28,10 @@ struct AddExpenseView: View {
     @State private var serviceProvider = ""
     @State private var notes = ""
     @State private var showingCarPicker = false
+    @State private var hasValidity = false
+    @State private var validFrom = Date()
+    @State private var validUntil = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
+    @State private var createReminder = true
 
     var isEditing: Bool { expenseToEdit != nil }
 
@@ -46,14 +50,9 @@ struct AddExpenseView: View {
                         Button {
                             showingCarPicker = true
                         } label: {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color.blue.opacity(0.1))
-                                        .frame(width: 50, height: 50)
-                                    Image(systemName: "car.fill")
-                                        .foregroundStyle(.blue)
-                                }
+                            HStack(spacing: AppDesign.Spacing.sm) {
+                                Image(systemName: "car.fill")
+                                    .iconBadge(color: AppDesign.Colors.accent, size: 50, cornerRadius: AppDesign.Radius.sm)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(car.displayName)
@@ -70,7 +69,7 @@ struct AddExpenseView: View {
                                     .font(.caption)
                                     .foregroundStyle(.tertiary)
                             }
-                            .padding(.vertical, 4)
+                            .padding(.vertical, AppDesign.Spacing.xxs)
                         }
                     } else {
                         Button {
@@ -129,6 +128,26 @@ struct AddExpenseView: View {
                     }
                 } header: {
                     Text("Category")
+                }
+
+                // Validity Period (for insurance, tax, inspection, toll)
+                if category.hasValidityPeriod {
+                    Section {
+                        Toggle("Has Validity Period", isOn: $hasValidity.animation())
+
+                        if hasValidity {
+                            DatePicker("Valid From", selection: $validFrom, displayedComponents: .date)
+                            DatePicker("Valid Until", selection: $validUntil, displayedComponents: .date)
+
+                            Toggle("Remind Before Expiry", isOn: $createReminder)
+                        }
+                    } header: {
+                        Text("Validity")
+                    } footer: {
+                        if hasValidity {
+                            Text("Track when this \(category.rawValue.lowercased()) expires")
+                        }
+                    }
                 }
 
                 // Additional Details
@@ -201,6 +220,15 @@ struct AddExpenseView: View {
             }
             serviceProvider = expense.serviceProvider ?? ""
             notes = expense.notes ?? ""
+            if let from = expense.validFrom {
+                hasValidity = true
+                validFrom = from
+            }
+            if let until = expense.validUntil {
+                hasValidity = true
+                validUntil = until
+            }
+            createReminder = false // Don't auto-create when editing
         } else if let car = preselectedCar {
             selectedCar = car
         } else if let car = appState.getSelectedCar(from: cars) {
@@ -216,6 +244,9 @@ struct AddExpenseView: View {
         let amountValue = Double(amount.replacingOccurrences(of: ",", with: ".")) ?? 0
         let odometerValue = Int(odometer)
 
+        let effectiveValidFrom = hasValidity ? validFrom : nil
+        let effectiveValidUntil = hasValidity ? validUntil : nil
+
         if let expense = expenseToEdit {
             expense.date = date
             expense.category = category
@@ -224,6 +255,8 @@ struct AddExpenseView: View {
             expense.odometer = odometerValue
             expense.serviceProvider = serviceProvider.isEmpty ? nil : serviceProvider
             expense.notes = notes.isEmpty ? nil : notes
+            expense.validFrom = effectiveValidFrom
+            expense.validUntil = effectiveValidUntil
             expense.car = car
         } else {
             let newExpense = Expense(
@@ -234,6 +267,8 @@ struct AddExpenseView: View {
                 odometer: odometerValue,
                 notes: notes.isEmpty ? nil : notes,
                 serviceProvider: serviceProvider.isEmpty ? nil : serviceProvider,
+                validFrom: effectiveValidFrom,
+                validUntil: effectiveValidUntil,
                 car: car
             )
             modelContext.insert(newExpense)
@@ -242,9 +277,37 @@ struct AddExpenseView: View {
             if let odo = odometerValue, odo > car.currentOdometer {
                 car.currentOdometer = odo
             }
+
+            // Auto-create reminder for expiry
+            if hasValidity && createReminder, let until = effectiveValidUntil {
+                let reminderType = reminderTypeForCategory(category)
+                let title = subcategory.isEmpty
+                    ? "\(category.rawValue) Renewal"
+                    : "\(subcategory) Renewal"
+                let reminder = Reminder(
+                    type: reminderType,
+                    title: title,
+                    dueDate: until,
+                    notifyDaysBefore: 30,
+                    car: car
+                )
+                modelContext.insert(reminder)
+                NotificationService.shared.scheduleReminderNotification(for: reminder, car: car)
+            }
         }
 
+        try? modelContext.save()
         dismiss()
+    }
+
+    private func reminderTypeForCategory(_ category: ExpenseCategory) -> ReminderType {
+        switch category {
+        case .insurance: return .insurance
+        case .tax: return .roadTax
+        case .inspection: return .inspection
+        case .toll: return .vignette
+        default: return .custom
+        }
     }
 }
 

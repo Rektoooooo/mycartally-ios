@@ -199,6 +199,7 @@ struct SetupCarStepView: View {
             currentOdometer: odometerValue
         )
         modelContext.insert(newCar)
+        try? modelContext.save()
         appState.selectCar(newCar)
 
         // Brief delay for visual feedback
