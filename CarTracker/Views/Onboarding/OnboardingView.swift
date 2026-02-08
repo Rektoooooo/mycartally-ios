@@ -4,141 +4,170 @@
 //
 
 import SwiftUI
+import SwiftData
 
-struct OnboardingView: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var currentPage = 0
-    let onComplete: () -> Void
+// MARK: - Onboarding Step Enum
 
-    var body: some View {
-        VStack {
-            TabView(selection: $currentPage) {
-                OnboardingPage(
-                    image: "car.fill",
-                    title: "Track Your Vehicle",
-                    description: "Keep all your car's information in one place. Track fuel consumption, maintenance costs, and service history.",
-                    color: .blue
-                )
-                .tag(0)
+enum OnboardingStep: Int, CaseIterable {
+    case welcome = 0
+    case socialProof
+    case carUsage
+    case expenseWorries
+    case currency
+    case units
+    case valueSavings
+    case valueResale
+    case valueMaintenance
+    case calculating
+    case savingsPlan
+    case notifications
+    case setupCar
+    case allSet
 
-                OnboardingPage(
-                    image: "fuelpump.fill",
-                    title: "Log Fuel & Expenses",
-                    description: "Record every fill-up and expense. See your real fuel consumption and track where your money goes.",
-                    color: .orange
-                )
-                .tag(1)
-
-                OnboardingPage(
-                    image: "bell.fill",
-                    title: "Never Miss a Service",
-                    description: "Set reminders for inspections, insurance renewals, oil changes, and more. Get notified before they're due.",
-                    color: .purple
-                )
-                .tag(2)
-
-                OnboardingPage(
-                    image: "chart.bar.fill",
-                    title: "Analyze Your Costs",
-                    description: "View detailed statistics and charts. Know exactly how much your car costs per kilometer and per month.",
-                    color: .green
-                )
-                .tag(3)
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-
-            // Page indicator
-            HStack(spacing: 8) {
-                ForEach(0..<4) { index in
-                    Circle()
-                        .fill(currentPage == index ? Color.blue : Color.gray.opacity(0.3))
-                        .frame(width: 8, height: 8)
-                        .animation(.easeInOut(duration: 0.2), value: currentPage)
-                }
-            }
-            .padding(.bottom, 20)
-
-            // Buttons
-            VStack(spacing: 12) {
-                if currentPage < 3 {
-                    Button {
-                        withAnimation {
-                            currentPage += 1
-                        }
-                    } label: {
-                        Text("Continue")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
-
-                    Button {
-                        onComplete()
-                    } label: {
-                        Text("Skip")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
-                    Button {
-                        onComplete()
-                    } label: {
-                        Text("Get Started")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                    }
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 40)
+    var hidesProgress: Bool {
+        switch self {
+        case .welcome, .calculating, .savingsPlan, .allSet:
+            return true
+        default:
+            return false
         }
-        .background(Color(.systemBackground))
+    }
+
+    var hidesBackButton: Bool {
+        switch self {
+        case .welcome, .calculating, .savingsPlan, .allSet:
+            return true
+        default:
+            return false
+        }
+    }
+
+    static var progressSteps: Int {
+        // Count only steps that show the progress bar
+        allCases.filter { !$0.hidesProgress }.count
+    }
+
+    var progressValue: Int {
+        let visibleSteps = OnboardingStep.allCases.filter { !$0.hidesProgress }
+        guard let index = visibleSteps.firstIndex(of: self) else { return 0 }
+        return index + 1
     }
 }
 
-struct OnboardingPage: View {
-    let image: String
-    let title: String
-    let description: String
-    let color: Color
+// MARK: - Main Onboarding View
+
+struct OnboardingView: View {
+    let onComplete: () -> Void
+
+    @State private var currentStep: OnboardingStep = .welcome
+    @State private var isNavigatingBack = false
+    @State private var viewModel = OnboardingViewModel()
 
     var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
+        VStack(spacing: 0) {
+            // Top bar: back button + progress
+            if !currentStep.hidesProgress {
+                HStack(spacing: OnboardingDesign.Spacing.md) {
+                    if !currentStep.hidesBackButton {
+                        OnboardingBackButton { goToPrevious() }
+                    }
 
-            ZStack {
-                Circle()
-                    .fill(color.opacity(0.15))
-                    .frame(width: 180, height: 180)
-
-                Image(systemName: image)
-                    .font(.system(size: 70))
-                    .foregroundStyle(color)
+                    OnboardingProgressBar(
+                        currentStep: currentStep.progressValue,
+                        totalSteps: OnboardingStep.progressSteps
+                    )
+                }
+                .padding(.horizontal, OnboardingDesign.Spacing.lg)
+                .padding(.vertical, OnboardingDesign.Spacing.sm)
             }
 
-            VStack(spacing: 16) {
-                Text(title)
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .multilineTextAlignment(.center)
+            // Step content with animated transitions
+            Group {
+                switch currentStep {
+                case .welcome:
+                    WelcomeStepView { goToNext() }
 
-                Text(description)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                case .socialProof:
+                    SocialProofStepView { goToNext() }
+
+                case .carUsage:
+                    CarUsageStepView(viewModel: viewModel) { goToNext() }
+
+                case .expenseWorries:
+                    ExpenseWorryStepView(viewModel: viewModel) { goToNext() }
+
+                case .currency:
+                    CurrencyStepView(viewModel: viewModel) { goToNext() }
+
+                case .units:
+                    UnitsStepView(viewModel: viewModel) { goToNext() }
+
+                case .valueSavings:
+                    ValueSavingsStepView(viewModel: viewModel) { goToNext() }
+
+                case .valueResale:
+                    ValueResaleStepView(viewModel: viewModel) { goToNext() }
+
+                case .valueMaintenance:
+                    ValueMaintenanceStepView(viewModel: viewModel) { goToNext() }
+
+                case .calculating:
+                    CalculatingStepView {
+                        viewModel.applySettings()
+                        goToNext()
+                    }
+
+                case .savingsPlan:
+                    SavingsPlanStepView(viewModel: viewModel) { goToNext() }
+
+                case .notifications:
+                    NotificationsStepView { goToNext() }
+
+                case .setupCar:
+                    SetupCarStepView { goToNext() }
+
+                case .allSet:
+                    AllSetStepView { completeOnboarding() }
+                }
             }
-
-            Spacer()
-            Spacer()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(OnboardingDesign.Colors.background)
+            .transition(.asymmetric(
+                insertion: .opacity.combined(with: .offset(x: isNavigatingBack ? -50 : 50)),
+                removal: .opacity.combined(with: .offset(x: isNavigatingBack ? 50 : -50))
+            ))
+            .id(currentStep)
         }
+        .background(OnboardingDesign.Colors.background)
+    }
+
+    // MARK: - Navigation
+
+    private func goToNext() {
+        let allSteps = OnboardingStep.allCases
+        guard let currentIndex = allSteps.firstIndex(of: currentStep),
+              currentIndex + 1 < allSteps.count else {
+            completeOnboarding()
+            return
+        }
+        isNavigatingBack = false
+        withAnimation(OnboardingDesign.Animation.stepTransition) {
+            currentStep = allSteps[currentIndex + 1]
+        }
+    }
+
+    private func goToPrevious() {
+        let allSteps = OnboardingStep.allCases
+        guard let currentIndex = allSteps.firstIndex(of: currentStep),
+              currentIndex > 0 else { return }
+        isNavigatingBack = true
+        withAnimation(OnboardingDesign.Animation.stepTransition) {
+            currentStep = allSteps[currentIndex - 1]
+        }
+    }
+
+    private func completeOnboarding() {
+        onComplete()
     }
 }
 
@@ -172,4 +201,6 @@ class OnboardingManager {
     OnboardingView {
         print("Onboarding completed")
     }
+    .modelContainer(for: [Car.self], inMemory: true)
+    .environment(AppState())
 }

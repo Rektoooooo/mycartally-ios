@@ -39,10 +39,6 @@ struct CarTrackerApp: App {
             MainTabView()
                 .environment(appState)
                 .preferredColorScheme(settings.theme.colorScheme)
-                .task {
-                    // Request notification permissions on first launch
-                    await NotificationService.shared.requestAuthorization()
-                }
                 .onAppear {
                     if !onboardingManager.hasCompletedOnboarding {
                         showOnboarding = true
@@ -53,6 +49,7 @@ struct CarTrackerApp: App {
                         onboardingManager.completeOnboarding()
                         showOnboarding = false
                     }
+                    .environment(appState)
                 }
         }
         .modelContainer(sharedModelContainer)
