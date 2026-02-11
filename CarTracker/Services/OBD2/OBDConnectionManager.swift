@@ -27,7 +27,7 @@ class OBDConnectionManager {
     // MARK: - Private
 
     private var obdService: OBDService?
-    private var continuousUpdatesCancellable: AnyCancellable?
+    private var pollingTask: Task<Void, Never>?
     private var demoTimer: Timer?
 
     // MARK: - Initialization
@@ -58,16 +58,15 @@ class OBDConnectionManager {
             return
         }
 
-        guard let service = obdService else {
-            obdService = OBDService(connectionType: selectedConnectionType)
-            await connect()
-            return
-        }
+        // Always create a fresh service with the currently selected connection type
+        obdService?.stopConnection()
+        let service = OBDService(connectionType: selectedConnectionType)
+        obdService = service
 
         connectionState = .connecting
 
         do {
-            let info = try await service.startConnection()
+            let info = try await service.startConnection(timeout: 15)
             connectionState = .connectedToVehicle
             vehicleVIN = info.vin
             obdProtocol = info.obdProtocol?.description
@@ -75,8 +74,37 @@ class OBDConnectionManager {
                 supportedPIDs = pids
             }
         } catch {
-            connectionState = .error(error.localizedDescription)
+            let message = friendlyErrorMessage(for: error)
+            connectionState = .error(message)
         }
+    }
+
+    private func friendlyErrorMessage(for error: Error) -> String {
+        if let obdError = error as? OBDServiceError {
+            switch obdError {
+            case .noAdapterFound:
+                if selectedConnectionType == .wifi {
+                    return "Could not reach the OBD2 adapter. Make sure your iPhone is connected to the adapter's Wi-Fi network and the adapter is powered on."
+                } else {
+                    return "No OBD2 adapter found. Make sure the adapter is plugged in and powered on."
+                }
+            case .notConnectedToVehicle:
+                return "Connected to adapter but could not communicate with the vehicle. Is the engine running or ignition on?"
+            case .adapterConnectionFailed(let underlying):
+                if selectedConnectionType == .wifi {
+                    return "Wi-Fi connection failed: \(underlying.localizedDescription). Verify you're on the adapter's Wi-Fi network (usually 192.168.0.10)."
+                } else {
+                    return "Adapter connection failed: \(underlying.localizedDescription)"
+                }
+            case .scanFailed(let underlying):
+                return "Scan failed: \(underlying.localizedDescription)"
+            case .clearFailed(let underlying):
+                return "Clear failed: \(underlying.localizedDescription)"
+            case .commandFailed(let cmd, let underlying):
+                return "Command \(cmd) failed: \(underlying.localizedDescription)"
+            }
+        }
+        return error.localizedDescription
     }
 
     func disconnect() {
@@ -99,6 +127,23 @@ class OBDConnectionManager {
 
     // MARK: - Live Data Polling
 
+    // Fast PIDs - polled every cycle (responsive to driver input)
+    private static let fastPIDs: [OBDCommand] = [
+        .mode1(.rpm),
+        .mode1(.speed),
+        .mode1(.throttlePosD),
+        .mode1(.engineLoad),
+    ]
+
+    // Slow PIDs - polled every 5th cycle (these values change slowly)
+    private static let slowPIDs: [OBDCommand] = [
+        .mode1(.engineOilTemp),
+        .mode1(.coolantTemp),
+        .mode1(.controlModuleVoltage),
+        .mode1(.intakeTemp),
+        .mode1(.fuelRate),
+    ]
+
     func startLiveDataPolling() {
         guard !isPolling else { return }
         isPolling = true
@@ -110,40 +155,49 @@ class OBDConnectionManager {
 
         guard let service = obdService else { return }
 
-        let pidsToQuery: [OBDCommand] = [
-            .mode1(.rpm),
-            .mode1(.speed),
-            .mode1(.coolantTemp),
-            .mode1(.fuelLevel),
-            .mode1(.engineLoad),
-            .mode1(.throttlePos),
-            .mode1(.intakeTemp),
-            .mode1(.controlModuleVoltage),
-            .mode1(.engineOilTemp),
-            .mode1(.fuelRate),
-        ]
+        pollingTask = Task { [weak self] in
+            // Physical addressing: send to engine ECU only (7E0→7E8).
+            _ = try? await service.sendCommandInternal("AT SH 7E0", retries: 1)
+            // Response timeout: 25 × 4ms = 100ms.
+            _ = try? await service.sendCommandInternal("ATST 19", retries: 1)
 
-        continuousUpdatesCancellable = service.startContinuousUpdates(pidsToQuery, interval: 0.5)
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { [weak self] completion in
-                    if case .failure(let error) = completion {
+            var cycle = 0
+            while !Task.isCancelled {
+                // Every 5th cycle add temperatures; otherwise just fast PIDs
+                let pids: [OBDCommand]
+                if cycle % 5 == 0 {
+                    pids = Self.fastPIDs + Self.slowPIDs
+                } else {
+                    pids = Self.fastPIDs
+                }
+                cycle += 1
+
+                do {
+                    let results = try await service.requestPIDs(pids, unit: .metric)
+                    await MainActor.run {
+                        self?.processLiveDataResults(results)
+                    }
+                } catch {
+                    await MainActor.run {
                         self?.connectionState = .error(error.localizedDescription)
                         self?.isPolling = false
                     }
-                },
-                receiveValue: { [weak self] results in
-                    self?.processLiveDataResults(results)
+                    break
                 }
-            )
+            }
+        }
     }
 
     func stopPolling() {
         isPolling = false
-        continuousUpdatesCancellable?.cancel()
-        continuousUpdatesCancellable = nil
+        pollingTask?.cancel()
+        pollingTask = nil
         demoTimer?.invalidate()
         demoTimer = nil
+        // Restore broadcast addressing so DTC scanning works with all ECUs
+        if let service = obdService {
+            Task { _ = try? await service.sendCommandInternal("AT SH 7DF", retries: 1) }
+        }
     }
 
     private func processLiveDataResults(_ results: [OBDCommand: MeasurementResult]) {
@@ -159,7 +213,10 @@ class OBDConnectionManager {
                 liveData.fuelLevel = result.value
             case .mode1(.engineLoad):
                 liveData.engineLoad = result.value
-            case .mode1(.throttlePos):
+            case .mode1(.throttlePosD):
+                // PID 0x49 has ~15% baseline from pedal sensor voltage; normalize to 0-100%
+                liveData.throttlePosition = max(0, ((result.value - 15.0) / 85.0) * 100.0)
+            case .mode1(.throttlePos), .mode1(.relativeThrottlePos):
                 liveData.throttlePosition = result.value
             case .mode1(.intakeTemp):
                 liveData.intakeAirTemp = result.value

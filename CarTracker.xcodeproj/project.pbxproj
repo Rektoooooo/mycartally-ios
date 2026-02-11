@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		ECA111D32F38FB4300D085D5 /* SwiftOBD2 in Frameworks */ = {isa = PBXBuildFile; productRef = ECA111D22F38FB4300D085D5 /* SwiftOBD2 */; };
+		EC5298372F3B6EE700E01F4B /* SwiftOBD2 in Frameworks */ = {isa = PBXBuildFile; productRef = EC5298362F3B6EE700E01F4B /* SwiftOBD2 */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,7 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				ECA111D32F38FB4300D085D5 /* SwiftOBD2 in Frameworks */,
+				EC5298372F3B6EE700E01F4B /* SwiftOBD2 in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,12 +77,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		EC5298352F3B6EE700E01F4B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		EC95CA762F087F9100A642A8 = {
 			isa = PBXGroup;
 			children = (
 				EC95CA812F087F9100A642A8 /* CarTracker */,
 				EC95CA8F2F087F9300A642A8 /* CarTrackerTests */,
 				EC95CA992F087F9300A642A8 /* CarTrackerUITests */,
+				EC5298352F3B6EE700E01F4B /* Frameworks */,
 				EC95CA802F087F9100A642A8 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -117,7 +125,7 @@
 			);
 			name = CarTracker;
 			packageProductDependencies = (
-				ECA111D22F38FB4300D085D5 /* SwiftOBD2 */,
+				EC5298362F3B6EE700E01F4B /* SwiftOBD2 */,
 			);
 			productName = CarTracker;
 			productReference = EC95CA7F2F087F9100A642A8 /* CarTracker.app */;
@@ -202,7 +210,7 @@
 			mainGroup = EC95CA762F087F9100A642A8;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				ECA111D12F38FB4300D085D5 /* XCRemoteSwiftPackageReference "SwiftOBD2" */,
+				EC5298342F3B6EA900E01F4B /* XCLocalSwiftPackageReference "../CarTracker/Packages/SwiftOBD2" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = EC95CA802F087F9100A642A8 /* Products */;
@@ -580,21 +588,17 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		ECA111D12F38FB4300D085D5 /* XCRemoteSwiftPackageReference "SwiftOBD2" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kkonteh97/SwiftOBD2";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
+/* Begin XCLocalSwiftPackageReference section */
+		EC5298342F3B6EA900E01F4B /* XCLocalSwiftPackageReference "../CarTracker/Packages/SwiftOBD2" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../CarTracker/Packages/SwiftOBD2;
 		};
-/* End XCRemoteSwiftPackageReference section */
+/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		ECA111D22F38FB4300D085D5 /* SwiftOBD2 */ = {
+		EC5298362F3B6EE700E01F4B /* SwiftOBD2 */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = ECA111D12F38FB4300D085D5 /* XCRemoteSwiftPackageReference "SwiftOBD2" */;
+			package = EC5298342F3B6EA900E01F4B /* XCLocalSwiftPackageReference "../CarTracker/Packages/SwiftOBD2" */;
 			productName = SwiftOBD2;
 		};
 /* End XCSwiftPackageProductDependency section */

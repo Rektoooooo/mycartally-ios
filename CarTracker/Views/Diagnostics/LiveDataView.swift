@@ -10,9 +10,9 @@ struct LiveDataView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: AppDesign.Spacing.md) {
+            VStack(spacing: AppDesign.Spacing.lg) {
                 // Primary Gauges - RPM and Speed
-                HStack(spacing: AppDesign.Spacing.md) {
+                HStack(spacing: AppDesign.Spacing.sm) {
                     CircularGaugeView(
                         value: obdManager.liveData.rpm ?? 0,
                         maxValue: 8000,
@@ -31,36 +31,30 @@ struct LiveDataView: View {
                 }
                 .padding(.horizontal, AppDesign.Spacing.md)
 
-                // Secondary Gauges Grid
+                // Oil Temperature - full width below gauges
+                if let oilTemp = obdManager.liveData.oilTemp {
+                    TemperatureCardView(
+                        title: "Oil Temperature",
+                        temp: oilTemp,
+                        icon: "drop.fill",
+                        color: tempColor(oilTemp)
+                    )
+                    .padding(.horizontal, AppDesign.Spacing.md)
+                }
+
+                // Secondary Metrics Grid
                 LazyVGrid(columns: [
                     GridItem(.flexible(), spacing: AppDesign.Spacing.sm),
                     GridItem(.flexible(), spacing: AppDesign.Spacing.sm),
                 ], spacing: AppDesign.Spacing.sm) {
                     DataTileView(
-                        title: "Coolant Temp",
+                        title: "Coolant",
                         value: obdManager.liveData.coolantTemp,
-                        unit: "°C",
+                        unit: "\u{00B0}C",
                         icon: "thermometer.medium",
                         color: tempColor(obdManager.liveData.coolantTemp ?? 0),
-                        format: "%.0f"
-                    )
-
-                    DataTileView(
-                        title: "Fuel Level",
-                        value: obdManager.liveData.fuelLevel,
-                        unit: "%",
-                        icon: "fuelpump.fill",
-                        color: fuelColor(obdManager.liveData.fuelLevel ?? 100),
-                        format: "%.0f"
-                    )
-
-                    DataTileView(
-                        title: "Engine Load",
-                        value: obdManager.liveData.engineLoad,
-                        unit: "%",
-                        icon: "gauge.with.dots.needle.67percent",
-                        color: loadColor(obdManager.liveData.engineLoad ?? 0),
-                        format: "%.0f"
+                        format: "%.0f",
+                        maxValue: 130
                     )
 
                     DataTileView(
@@ -69,35 +63,53 @@ struct LiveDataView: View {
                         unit: "%",
                         icon: "pedal.accelerator",
                         color: AppDesign.Colors.accent,
-                        format: "%.0f"
+                        format: "%.0f",
+                        maxValue: 100
                     )
 
                     DataTileView(
-                        title: "Intake Air",
-                        value: obdManager.liveData.intakeAirTemp,
-                        unit: "°C",
-                        icon: "wind",
-                        color: .cyan,
-                        format: "%.0f"
+                        title: "Engine Load",
+                        value: obdManager.liveData.engineLoad,
+                        unit: "%",
+                        icon: "gauge.with.dots.needle.67percent",
+                        color: loadColor(obdManager.liveData.engineLoad ?? 0),
+                        format: "%.0f",
+                        maxValue: 100
                     )
 
-                    DataTileView(
-                        title: "Voltage",
-                        value: obdManager.liveData.voltage,
-                        unit: "V",
-                        icon: "bolt.fill",
-                        color: voltageColor(obdManager.liveData.voltage ?? 14),
-                        format: "%.1f"
-                    )
-
-                    if obdManager.liveData.oilTemp != nil {
+                    if obdManager.liveData.voltage != nil {
                         DataTileView(
-                            title: "Oil Temp",
-                            value: obdManager.liveData.oilTemp,
-                            unit: "°C",
-                            icon: "drop.fill",
-                            color: tempColor(obdManager.liveData.oilTemp ?? 0),
-                            format: "%.0f"
+                            title: "Voltage",
+                            value: obdManager.liveData.voltage,
+                            unit: "V",
+                            icon: "bolt.fill",
+                            color: voltageColor(obdManager.liveData.voltage ?? 0),
+                            format: "%.1f",
+                            maxValue: 16
+                        )
+                    }
+
+                    if obdManager.liveData.intakeAirTemp != nil {
+                        DataTileView(
+                            title: "Intake Air",
+                            value: obdManager.liveData.intakeAirTemp,
+                            unit: "\u{00B0}C",
+                            icon: "wind",
+                            color: .cyan,
+                            format: "%.0f",
+                            maxValue: 80
+                        )
+                    }
+
+                    if obdManager.liveData.fuelLevel != nil {
+                        DataTileView(
+                            title: "Fuel Level",
+                            value: obdManager.liveData.fuelLevel,
+                            unit: "%",
+                            icon: "fuelpump.fill",
+                            color: fuelColor(obdManager.liveData.fuelLevel ?? 100),
+                            format: "%.0f",
+                            maxValue: 100
                         )
                     }
 
@@ -108,7 +120,8 @@ struct LiveDataView: View {
                             unit: "L/h",
                             icon: "flame.fill",
                             color: AppDesign.Colors.fuel,
-                            format: "%.1f"
+                            format: "%.1f",
+                            maxValue: 20
                         )
                     }
                 }
@@ -117,12 +130,12 @@ struct LiveDataView: View {
                 // Last Updated
                 if obdManager.liveData.hasAnyData {
                     Text("Updated \(obdManager.liveData.lastUpdated, style: .relative) ago")
-                        .font(AppDesign.Typography.caption)
+                        .font(AppDesign.Typography.caption2)
                         .foregroundStyle(AppDesign.Colors.textTertiary)
-                        .padding(.bottom, AppDesign.Spacing.md)
+                        .padding(.bottom, AppDesign.Spacing.lg)
                 }
             }
-            .padding(.top, AppDesign.Spacing.md)
+            .padding(.top, AppDesign.Spacing.sm)
         }
         .onAppear {
             if obdManager.connectionState.isConnectedToVehicle && !obdManager.isPolling {
@@ -182,34 +195,98 @@ struct CircularGaugeView: View {
     }
 
     var body: some View {
-        VStack(spacing: AppDesign.Spacing.xs) {
-            ZStack {
-                // Background track
-                Circle()
-                    .stroke(color.opacity(0.12), lineWidth: 12)
+        ZStack {
+            // Background track
+            Circle()
+                .stroke(color.opacity(0.08), lineWidth: 14)
 
-                // Value arc
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(
-                        color,
-                        style: StrokeStyle(lineWidth: 12, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .animation(AppDesign.Animation.smooth, value: progress)
+            // Value arc with glow
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(color, style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .shadow(color: color.opacity(0.3), radius: 6)
+                .animation(AppDesign.Animation.smooth, value: progress)
 
-                // Value text
-                VStack(spacing: 2) {
-                    Text(String(format: format, value))
-                        .font(AppDesign.Typography.title2)
-                        .fontDesign(.rounded)
+            // Center value
+            VStack(spacing: 2) {
+                Text(String(format: format, value))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .contentTransition(.numericText())
+                Text(label)
+                    .font(AppDesign.Typography.caption)
+                    .foregroundStyle(AppDesign.Colors.textSecondary)
+                    .textCase(.uppercase)
+            }
+        }
+        .frame(height: 150)
+        .premiumCard()
+    }
+}
+
+// MARK: - Temperature Card View
+
+struct TemperatureCardView: View {
+    let title: String
+    let temp: Double
+    let icon: String
+    let color: Color
+
+    private var normalizedTemp: Double {
+        min(max((temp - 20) / 130.0, 0), 1.0)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppDesign.Spacing.sm) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundStyle(color)
+                    .frame(width: 28, height: 28)
+                    .background(color.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
+
+                Text(title)
+                    .font(AppDesign.Typography.subheadline)
+                    .foregroundStyle(AppDesign.Colors.textSecondary)
+
+                Spacer()
+
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text(String(format: "%.0f", temp))
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
                         .contentTransition(.numericText())
-                    Text(label)
-                        .font(AppDesign.Typography.caption)
+                    Text("\u{00B0}C")
+                        .font(AppDesign.Typography.footnote)
                         .foregroundStyle(AppDesign.Colors.textSecondary)
                 }
             }
-            .frame(height: 140)
+
+            // Temperature gradient bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(
+                            LinearGradient(
+                                colors: [.cyan.opacity(0.15), .green.opacity(0.15), .orange.opacity(0.15), .red.opacity(0.15)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(
+                            LinearGradient(
+                                colors: [.cyan, color],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(geo.size.width * normalizedTemp, 4))
+                        .animation(AppDesign.Animation.smooth, value: normalizedTemp)
+                }
+            }
+            .frame(height: 6)
         }
         .premiumCard()
     }
@@ -224,35 +301,56 @@ struct DataTileView: View {
     let icon: String
     let color: Color
     let format: String
+    var maxValue: Double = 100
+
+    private var progress: Double {
+        guard let v = value else { return 0 }
+        return min(v / maxValue, 1.0)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppDesign.Spacing.xs) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.subheadline)
-                    .foregroundStyle(color)
-                Spacer()
-            }
+            // Icon with colored background
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(color)
+                .frame(width: 28, height: 28)
+                .background(color.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
 
+            // Value
             if let value {
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
                     Text(String(format: format, value))
-                        .font(AppDesign.Typography.title3)
-                        .fontDesign(.rounded)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
                         .contentTransition(.numericText())
                     Text(unit)
-                        .font(AppDesign.Typography.caption)
+                        .font(AppDesign.Typography.caption2)
                         .foregroundStyle(AppDesign.Colors.textSecondary)
                 }
             } else {
                 Text("--")
-                    .font(AppDesign.Typography.title3)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(AppDesign.Colors.textTertiary)
             }
 
+            // Title
             Text(title)
                 .font(AppDesign.Typography.caption)
                 .foregroundStyle(AppDesign.Colors.textSecondary)
+
+            // Progress bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color.opacity(0.08))
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color)
+                        .frame(width: max(geo.size.width * progress, value != nil ? 2 : 0))
+                        .animation(AppDesign.Animation.smooth, value: progress)
+                }
+            }
+            .frame(height: 3)
         }
         .premiumCard()
     }

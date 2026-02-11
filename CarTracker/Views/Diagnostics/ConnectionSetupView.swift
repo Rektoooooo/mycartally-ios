@@ -152,6 +152,13 @@ struct ConnectionSetupView: View {
                     }
                 }
             }
+            .onChange(of: obdManager.connectionState) { _, newState in
+                if newState.isConnectedToVehicle {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 
